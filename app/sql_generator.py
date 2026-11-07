@@ -15,7 +15,7 @@ MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 
 
 def get_schema() -> str:
-    """Database ke tables aur columns ko text mein nikalta hai."""
+    """Return the CREATE TABLE statements of the database as text."""
     conn = sqlite3.connect(DB_PATH)
     rows = conn.execute(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
@@ -25,12 +25,13 @@ def get_schema() -> str:
 
 
 def clean_sql(text: str) -> str:
-    """Agar model ne ```sql fences laga diye hon to hata deta hai."""
+    """Remove markdown code fences if the model added them."""
     text = re.sub(r"```(?:sql)?", "", text, flags=re.IGNORECASE)
     return text.strip()
 
 
-def generate_sql(question: str, retries: int = 3) -> str:
+def generate_sql(question: str, retries: int = 5) -> str:
+    """Ask the LLM to translate a natural-language question into SQL."""
     schema = get_schema()
     system_prompt = f"""You are an expert SQLite analyst.
 Given the database schema below, write ONE SQLite SELECT query that answers the user's question.
@@ -57,14 +58,14 @@ Schema:
             )
             return clean_sql(response.text)
         except ServerError as e:
-            # 503 jaisi temporary galti par dobara koshish
+            # Retry on temporary server errors such as 503
             if attempt == retries:
                 raise
-            wait = 2 * attempt
-            print(f"Server busy ({e.code}), {wait}s baad dobara koshish...")
+            wait = 5 * attempt
+            print(f"Server busy ({e.code}), retrying in {wait}s...")
             time.sleep(wait)
 
 
 if __name__ == "__main__":
-    q = input("Sawal poochhein: ")
+    q = input("Ask a question: ")
     print("\nGenerated SQL:\n", generate_sql(q))
