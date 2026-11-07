@@ -1,14 +1,22 @@
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app.agent import answer_question
 from app.charts import build_chart
 
 app = FastAPI(title="Chat With Your Data")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 class Question(BaseModel):
     question: str
+
+
+@app.get("/")
+def home():
+    return FileResponse("static/index.html")
 
 
 @app.get("/health")
